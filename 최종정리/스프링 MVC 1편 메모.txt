@@ -94,6 +94,15 @@ AOP : 공통관심사항이나 핵심관심사항은 아니면서 코드추가�
 
 MVC 1편
 
+---------------
+흐름 요약
+서블릿 : response로 html코드 일일히 입력하는 등 불편함, HTML+자바코드 섞여서 지저분복잡
+html에서 필요한 부분만 동적 변경 필요해짐
+->JSP/타임리프 등으로 뷰화면 분리
+JSP에서 <% ~ %> 안에 자바 코드를 입력했더니, 뷰에 비즈니스 로직 너무 많이 노출되고 유지보수 지옥이다.
+->MVC 패턴 등장
+---------------
+
 HTTP 기반으로 웹과 서버가 통신함
 웹서버 : 정적리소스, WAS : 애플리케이션 로직까지 가능 (둘의 경계는 모호함)
 웹시스템 구성 - 최소구성은 WAS,DB 만으로 가능하지만 WAS에 과부하 되므로 웹서버/WAS/DB로 구성
@@ -122,10 +131,68 @@ WAS의 멀티 쓰레드 지원 : 개발자가 멀티쓰레드 관련 코드 노�
 
 HttpServletRequest를 통해 HTTP 메시지의 start-line, header 정보 조회 가능
 
-HTTP 요청 데이터는 다음 3가지 방식 사용
+
+--------------------------------------------------------------
+<서블릿>
+HttpServletRequest request, HttpServletResponse response 를 인자로 받아서, 요청 데이터 포맷에 따라 다음과 같이 사용할 수 있다.
+
+HttpServletRequest 사용법
+1. HTTP 요청 데이터 - GET - 쿼리 파라미터, POST HTML Form 
+POST HTML Form에서도 파라미터 함수 지원한다!
+request.getParameter("파라미터")		//단일 파라미터 조회
+request.getParameterNames();		//파라미터 이름들 모두 조회
+request.getParameterMap();			//파라미터를 Map으로 조회
+request.getParameterValues("파라미터")	//복수 파라미터 조회
+
+2. HTTP 요청 데이터 - API 메시지 바디 - 단순 텍스트
+request의 메시지 바디를 인풋스트림을 통해 byte형으로 받은후 스트링으로 변환해서 쓴다.
+response 시, writer로 입력한다.
+ServletInputStream inputStream = request.getInputStream();
+ 	String messageBody = StreamUtils.copyToString(inputStream, 
+StandardCharsets.UTF_8);
+response.getWriter().write("ok");
+
+3. HTTP 요청 데이터 - API 메시지 바디 - JSON
+request를 인풋스트림으로 데이터를 받아 스트링 변환 후, 오브젝트맵퍼를 통해 JSON을 자바 객체로 변환해 쓴다
+private ObjectMapper objectMapper = new ObjectMapper();
+인풋 받은 후 >>
+HelloData helloData = objectMapper.readValue(messageBody, HelloData.class);
+이후 자바 객체로 코드 구현
+
+요건 어디징
+//request.getHeader(headerName)		//단일 헤더 조회
+
+HttpServletResponse 사용법
+1. 기본 사용법
+response.setStatus(HttpServletResponse.SC_OK);
+response.setHeader("my-header","hello");
+content(response);
+cookie(response);
+redirect(response);
+PrintWriter writer = response.getWriter();
+writer.println("ok")
+
+2. HTML 응답
+response.setContentType("text/html");
+response.setCharacterEncoding("utf-8")
+PrintWriter writer = response.getWriter();
+ writer.println("<html>");
+ writer.println("<body>");
+ writer.println(" <div>안녕?</div>");
+ writer.println("</body>");
+ writer.println("</html>");
+
+3. API JSON
+response.setHeader("content-type", "application/json");
+response.setCharacterEncoding("utf-8");
+String result = objectMapper.writeValueAsString(data);
+response.getWriter().write(result);
+--------------------------------------------------------------
+
+HTTP 요청 데이터는 주로 다음 3가지 방식 사용
 - GET - 쿼리 파라미터
 - POST - HTML Form
-- HTTP message body 에 직접 담아서 요청
+- HTTP message body 에 직접 담아서 요청 (데이터 형식은 주로 JSON)
 
 request.getParameter() 는 get url 쿼리 파라미터와 POST HTML Form 형식 둘 다 지원한다
 InputStream으로 API 데이터의 텍스트 읽을수 있따 하지만 요즘은 텍스트보다 JSON으로 주고받기때매 JSON방식 으로 익혀두자
@@ -138,7 +205,7 @@ GET - 쿼리 파라미터, POST - HTML Form 는 getParameter()기능이 있으�
 
 response : status 세팅, 헤더 세팅, 바디컨텐츠(response.getWriter 또는 getInputStream을 얻고 거기 값 넣어주면댐)
 
-HTTP 응담 데이터도 크게 3가지임
+HTTP 응답 데이터도 크게 3가지임
 - 단순 텍스트 응답 (writer.println("wow");)
 - HTML 응답 : ContentType에 "text/html" 넣어줌. writer.println("<html>"); 로 html코드 작성
 - HTTP API - MessageBody JSON 응답
@@ -157,13 +224,20 @@ JSP : html문서에서 비즈니스 로직까지 하니까 두개의 일을 하�
 (중요) 변경 주기가 다르다! UI와 비즈니스로직은 라이프사이클이 서로다르므로 한 파일에서 관리하는것은 유지보수에 안좋다!
 => mvc패턴으로 해결!
 
+컨트롤러 : 파라미터 검증 및 비즈니스 로직, 뷰에 전달할 데이터를 모델에 담음
+(일반적으로 서비스에 비즈니스 로직 담으며, 컨트롤러는 해당하는 서비스 호출용으로 사용)
+모델 : 뷰에 출력할 데이터 담아둠. 비즈니스 로직 몰라도 되고 렌더링에 집중가능.
+뷰 : 데이터 사용해서 화면 그림. HTML 생성하는 부분
+
 서블릿(컨트롤러)에서 비즈니스로직 처리 후 jsp로 결과를 보내서 화면에 띄움
+HttpServletRequest를 Model로 사용함.
+request.setAttribute() , request.getAttribute()로 데이터 보관/조회
 request, response를 인자로 jsp가 띄워지므로 거기있는 파라미터들(변수)사용가능
 
 dispatcher.forward() : 다른 서블릿이나 JSP로 이동할 수 있는 기능. 서버 내부끼리의 호출임.(클라이언트 갔다오는게 아닌)
 리다이렉트(클라이언트 갔다옴)<->포워드(서버내에서호출)
-상대경로
-WEB-INF
+상대경로( / 로 시작X) : 폼 전송시 현재 URL이 속한 계층 경로 + 경로 호출된다.
+/WEB-INF : 이 경로안에 JSP가 있으면 외부에서 직접 JSP를 호출할 수 없다. 항상 컨트롤러를 통해서 JSP를 호출하는 것이다.
 데이터 넣을 때 : setAttribute() 를 통해 객체에 데이터 보관가능
 데이터 뺄 때 : ${} 프로퍼티 접근법으로 쉽게 사용 (getAttribute() 는 복잡)
 List유형 처리를 위해 <c:forEach> 기능 사용 : members 리스트에서 객체를 차례로 꺼내서 item 변수에 담아 사용

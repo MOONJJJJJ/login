@@ -1,0 +1,378 @@
+Maven VS Gradle => Gradle 쓴다 요즘은
+https://start.spring.io/ 에서 프로젝트 생성 (프로젝트 타입, 라이브러리 추가 등) 후 알집풀어서 인텔리J에서 오픈해서 사용함
+gradle : 고정 설정?하고 라이브러리 떙겨오는 거다
+
+정적컨텐츠
+MVC : 컨트롤러로 뷰화면에 데이터 띄움 (화면에 띙무)
+API : 템플릿 실행시키지 않고 데이터로 바로내림
+
+테스트 단축키 : 커맨드 시프트 T
+테스트 : 주석 3개 패턴으로 //given //when //then
+먼가가주어졌을떄 이런걸실행할때 이렇케된다
+
+컨트롤러 - 외부 요청받고
+리포지토리 - 저장하고
+서비스 - 비즈니스 로직 수행 
+
+DI - 의존성 주입!
+
+@Autowired 연결
+컨트롤러->서비스->리포지토리
+
+대강 느낌
+컨트롤러 : (화면 <-> 서비스) 화면과 비즈니스 로직 사이 연결. 어느 화면에 어떤 로직을 연결할지 정의
+서비스 : (컨트롤러 <-> 리포지토리) 비즈니스 로직. 리포지토리 메서드로 구성하여 컨트롤러와 리포지토리 사이 연결
+리포지토리 : (서비스 <-> 도메인?) 도메인 데이터 리스트를 관리 (추가/삭제/조회)
+
+jdbc:h2:tcp://localhost/~/test
+
+스프링 장점 : 확장시 여러 파일의 코드 수정없이 (연결을 위한 조립 부분제외) 스프링 컨테이너에서 갈아끼기만 하면 됨
+
+DB, jdbc 사용위한 설정
+1. build.gradle 파일에 jdbc, h2 데이터베이스 관련 라이브러리 추가
+implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+runtimeOnly 'com.h2database:h2
+
+2. resources/application.properties에 연결 설정 추가
+spring.datasource.url=jdbc:h2:tcp://localhost/~/test
+spring.datasource.driver-class-name=org.h2.Driver
+spring.datasource.username=sa
+
+3. jdbcTemplate리포지토리 생성 및 스프링컨테이너에 아래 내용 추가
+private final DataSource dataSource;
+ public SpringConfig(DataSource dataSource) {
+ this.dataSource = dataSource;
+ }
+
+통합 테스트 : 스프링컨테이너와 DB까지올려서 테스트
+단위 테스트 : 스프링컨테이너 없이 순수 자바 코드로 테스트
+=> 통테는 테스트설계가 잘못될위험있고, 실행도 오래걸리므로 단위 테스트로 쪼개서 테스트를 잘 짜는게 제일 좋타
+
+통합테스트는 이거 두개 써주면댐
+@SpringBootTest 스프링 컨테이너와 테스트를 함께 실행한다
+@Transactional 테스트 케이스에 이 애노테이션이 있으면, 테스트 시작 전에 트랜잭션을 시작하고, 테스트
+완료 후에 항상 롤백한다. 이렇게 하면 DB에 데이터가 남지 않으므로 다음 테스트에 영향을 주지 않는다.
+
+DB 삽입/조회 - jdbc템플릿 라이브러리로 간단하게 구현가능
+SimpleJdbcInsert : insert시 sql쓸필요없이 테이블명,컬럼명으로 코드구현가능
+jdbcTemplate : 쿼리날릴때 간단
+
+JPA : SQL을 알아서 만들어줌
+1. build.gradle 파일에 아래내용 추가 (jdbc는 없애도됨 아래포함댐)
+implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+이렇케 ↓↓↓
+dependencies {
+implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+implementation 'org.springframework.boot:spring-boot-starter-web'
+// implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+runtimeOnly 'com.h2database:h2'
+testImplementation('org.springframework.boot:spring-boot-starter-test') {
+exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
+}
+}
+
+2.resources/application.properties 에 JPA 설정 추가
+spring.datasource.url=jdbc:h2:tcp://localhost/~/test
+spring.datasource.driver-class-name=org.h2.Driver
+spring.datasource.username=sa
+spring.jpa.show-sql=true
+spring.jpa.hibernate.ddl-auto=none
+
+JPA 를 리포지토리에서 사용 : EntityManager 주입
+
+JPA는 공부 따로해야함 할게많움
+
+스프링데이터JPA : 사용시 리포지토리에 구현 클래스 없이 인터페이스 만으로 개발 가능해짐.
+인터페이스를 통한 기본적인 CRUD
+메서드 이름만으로 조회 기능 제공
+페이징 기능 자동 제공
+
+AOP : 공통관심사항이나 핵심관심사항은 아니면서 코드추가시 유지보수가 헬이 되고 별도의 공통로직으로는 만들기 어려운 경우 사용
+-> 공통관심사항과 핵심관심사항 분리
+----------------------------------------
+
+MVC 1편
+
+HTTP 기반으로 웹과 서버가 통신함
+웹서버 : 정적리소스, WAS : 애플리케이션 로직까지 가능 (둘의 경계는 모호함)
+웹시스템 구성 - 최소구성은 WAS,DB 만으로 가능하지만 WAS에 과부하 되므로 웹서버/WAS/DB로 구성
+서블릿 : HTTP 통신에서 비즈니스 로직 제외 전후단계를 자동으로 제공해줌
+서블릿 객체는 싱클톤으로 관리! (하나 생성해놓고 쭉 씀) -> 공유 변수 사용 주의
+서블릿은 멀티 쓰레드를 지원함
+WAS의 주요 튜닝 포인트 : 최대 쓰레드 수
+너무 낮으면 : 리소스는 여유롭지만 클라이언트는 금방 응답 지연
+너무 높으면 : CPU, 메모리 리소스 임계점 초과로 서버 다운
+성능 테스트 : 최대한 실제 서비스와 유사하게 성능테스트 시도, 툴 : 아파치 ab, 제이미터, nGrinder
+WAS의 멀티 쓰레드 지원 : 개발자가 멀티쓰레드 관련 코드 노신경씀! 싱글 쓰레드 코딩하듯이 코딩하면댐! 멀티쓰레드 환경이므로 싱글톤 객체(서블릿, 스프링 빈) 주의해서 사용!
+백엔드 개발자가 개발 시 고민해야하는 포인트는 3가지
+1. 정적리소스 2. HTML 3. HTTP API
+
+백엔드 개발자 입장에서 UI 기술
+1. SSR 
+- 타임리프, JSP(JSP는 이제거의 사장댐)
+- 정적인 화면, 복잡하지 않을 때 사용
+2. CSR : 웹 프론트엔드 개발자의 전문 분야임
+- 리액트, 뷰.JS
+- 복잡하고 동적인 UI 사용시
+3. 백엔드는 1은 필수 2는 옵션 , 백엔드는 서버,DB,인프라 등의 기술도 공부가 필요하므로 2는 필수아닌 옵션으루
+
+현재 최종버전
+애노테이션 기반의 스프링 MVC + 스프링 부트(WAS가 자동 내장되어있어서 설치/배포 불필요!)
+
+HttpServletRequest를 통해 HTTP 메시지의 start-line, header 정보 조회 가능
+
+HTTP 요청 데이터는 다음 3가지 방식 사용
+- GET - 쿼리 파라미터
+- POST - HTML Form
+- HTTP message body 에 직접 담아서 요청
+
+request.getParameter() 는 get url 쿼리 파라미터와 POST HTML Form 형식 둘 다 지원한다
+InputStream으로 API 데이터의 텍스트 읽을수 있따 하지만 요즘은 텍스트보다 JSON으로 주고받기때매 JSON방식 으로 익혀두자
+
+lombok라이브러리 사용하면 @Getter @Setter 써주면 게터세터 자동 세팅됨! (설정에서 애노테이션 처리 활성화 체크 필수!)
+
+objectMapper : JSON 데이터 파싱 라이브러리
+
+GET - 쿼리 파라미터, POST - HTML Form 는 getParameter()기능이 있으므로 inputstream 굳이 쓰지 않는다.
+
+response : status 세팅, 헤더 세팅, 바디컨텐츠(response.getWriter 또는 getInputStream을 얻고 거기 값 넣어주면댐)
+
+HTTP 응담 데이터도 크게 3가지임
+- 단순 텍스트 응답 (writer.println("wow");)
+- HTML 응답 : ContentType에 "text/html" 넣어줌. writer.println("<html>"); 로 html코드 작성
+- HTTP API - MessageBody JSON 응답
+
+JSON 요청 vs 응답 처리
+요청 : HelloData helloData = objectMapper.readValue(messageBody, HelloData.class);
+응답 : String result = objectMapper.writeValueAsString(helloData);
+
+<참고>
+테스트 생성 단축키 : 커맨트+시프트+티
+
+템플릿 엔진 : html문서에서 동적으로 변경필요한부분만 변경하도록 해줌 -> jsp에 사용?
+서블릿 : html을 자바코드로 구현하는것은 번거로움
+JSP : html문서에서 비즈니스 로직까지 하니까 두개의 일을 하나의 파일에서 하는거같아 별로임
+
+(중요) 변경 주기가 다르다! UI와 비즈니스로직은 라이프사이클이 서로다르므로 한 파일에서 관리하는것은 유지보수에 안좋다!
+=> mvc패턴으로 해결!
+
+서블릿(컨트롤러)에서 비즈니스로직 처리 후 jsp로 결과를 보내서 화면에 띄움
+request, response를 인자로 jsp가 띄워지므로 거기있는 파라미터들(변수)사용가능
+
+dispatcher.forward() : 다른 서블릿이나 JSP로 이동할 수 있는 기능. 서버 내부끼리의 호출임.(클라이언트 갔다오는게 아닌)
+리다이렉트(클라이언트 갔다옴)<->포워드(서버내에서호출)
+상대경로
+WEB-INF
+데이터 넣을 때 : setAttribute() 를 통해 객체에 데이터 보관가능
+데이터 뺄 때 : ${} 프로퍼티 접근법으로 쉽게 사용 (getAttribute() 는 복잡)
+List유형 처리를 위해 <c:forEach> 기능 사용 : members 리스트에서 객체를 차례로 꺼내서 item 변수에 담아 사용
+<c:forEach var="item" items="${members}">
+${item.id}
+
+==>지금까지 방식(mvc패턴)의 한계 : 중복이있고 공통처리 어렵다
+==> 수문장역할 하는 컨트롤러 필요 : 프론트 컨트롤러로 해결 ==> mvc 프레임워크!
+
+동작방식 : 컨트롤러에서 지저분한 거 다 해주고, 핵심 로직 단순화
+프론트 컨트롤러에서 WebServlet으로 URI 연결하여 실행됨
+URI와 컨트롤러 매핑
+매핑된 컨트롤러를 컨트롤러 객체로 받음
+컨트롤러 객체의 실행 메서드가 실행되면, 컨트롤러 실행 메서드는 타입을 MyView 객체로 반환하여 MyView 객체로 넣음
+MyView 객체의 렌더 함수 실행하여 request에 모델값 넣고 jsp를 실행함
+
+==> 모델뷰 & 뷰리졸버(프론트컨트롤러 내부에) 추가해서 코드 보완 -> 서블릿에서 모델값넣고 뷰 호출하던걸 종속성 제거하여 서블릿-모델뷰-마이뷰로 진행. 마이뷰에서 모델값 넣음.
+프론트 컨트롤러에서 WebServlet으로 URI 연결하여 실행됨
+URI와 컨트롤러 매핑
+매핑된 컨트롤러를 컨트롤러 객체로 받음
+리퀘스트값을 파라미터와 값으로 매핑한 파라미터맵 생성하여 컨트롤러 인자 간소화?
+컨트롤러 객체 실행 메서드에 리퀘스트,리스폰스 대신 파라미터맵 인자로 하여 실행
+컨트롤러 객체의 실행 메서드가 실행되면, 컨트롤러 실행 메서드는 타입을 모델뷰 객체로 반환하여 모델뷰 객체로 넣음 ---> 서블릿 종속성 제거하고, 컨트롤러와 뷰 사이에 모델이 연결하며, 뷰에서 모델값 작업.
+뷰리졸버 함수를 통해 모델뷰의 뷰네임을 jsp파일과 연결후(논리명을 물리명으로 변경) MyView 객체의 렌더 함수 실행하여 request에 모델값 넣고 jsp를 실행함 
+
+
+==> 복잡하므로 개발자입장에서 편한코드로 보완 : 모델뷰없애고 뷰네임 스트링에 컨트롤러 반환값 넣음. 컨트롤러 호출 시 모델 객체 인자로 호출 후 모델 객체에 해당 모델값 또는 리스트 넣음.
+
+
+핸들러 어댑터
+핸들러(컨트롤러)호출 시 먼저 그 핸들러 처리가능한 어댑터들을 핸들러어댑터에서 찾아옴
+어댑터가 핸들러(컨트롤러) 호출해줌
+
+URI -> 처리가능한 어댑터 N개 -> 각 어댑터는 하나의 핸들러(컨트롤러) 호출 ?
+=> URI -> 지원가능 어댑터의 핸들러들을 다 호출 가능
+각 핸들러 별로 반환 포맷이 달라도, 각 어댑터에서 최종 반환 포맷만 맞춰주면 됨 : 확장성 증가
+
+스프링MVC
+
+디스패쳐서블릿이 핵심코드 (위에서만든거의 프론트컨트롤러 역할)
+디스패쳐서블릿의 doDispatch가 핵심 메서드!
+
+스프링MVC 강점 : DispatcherServlet 코드 변경 없이, 원하는 기능을 확장 및 변경 가능
+이 인터페이스들만 구현해서 DispatcherServlet 에 등록하면 자신만의 컨트롤러도 만들 수 이따 (쉽진않음)
+근데 나만의 컨트롤러 만들일은없다 (이미다 만들어져있슴ㅎ)
+
+
+주요 인터페이스 (스프링MVC의 동작방식임)
+- 핸들러매핑
+- 핸들러어댑터
+- 뷰리졸버
+- 뷰
+
+@RequestMapping 실무에선얘만씀거의. 애노테이션 기반의 컨트롤러 지원하는 매핑과 어댑터.
+
+스프링MVC : 
+애노테이션을 기반으로 동작
+
+@Controller
+컨트롤러 클래스{
+@RequestMapping("유알엘같은거")
+
+process메서드{ 모델뷰 반환("뷰네임") }
+
+String타입 메서드(@RequestParm("파라미터명") 타입 변수명,등 파라미터들){"뷰네임" 반환}
+
+}
+
+@RestController
+@Controller 는 반환 값이 String 이면 뷰 이름으로 인식된다. 그래서 뷰를 찾고 뷰가 랜더링 된다.
+@RestController 는 반환 값으로 뷰를 찾는 것이 아니라, HTTP 메시지 바디에 바로 입력한다. 따라서
+실행 결과로 ok 메세지를 받을 수 있다. @ResponseBody 와 관련이 있는데, 뒤에서 더 자세히 설명한다
+
+로그
+LEVEL: TRACE > DEBUG > INFO > WARN > ERROR
+개발 서버는 debug 출력
+운영 서버는 info 출력
+
+@Slf4j 애노테이션 넣으면 아래 구문 안써도댐
+private final Logger log = LoggerFactory.getLogger(getClass());
+
+로그에서 {} 쓰는 이유:불필요 연산 일어나지 않음 (SOUT에서 +연산자로 변수 넣는식으로하면 문자열 합치기연산일어남)
+
+로그쓰는이유
+성능도 SOUT보다 좋고 쓰레드정보,클래스이름등 부가정보 및 출력모양 조정 가능
+로그 레벨에 따라 개발서버/운영서버각각 출력할 것을 따로 정할 수 있따
+
+PathVariable(경로 변수) : 실무에서자주씀
+
+@RequestBody : 실무에서엄청자주씀. 메시지바디조회임. (주의)@RequestParam, @ModelAttribute와 관계없음!! 이건 요청 파라미터 조회임
+
+정적리소스/뷰템플릿(동적인html제공할때씀)/HTTP메시지(HTTP API제공할땐 HTML이 아닌 데이터 전달해야해서씀)
+
+정적리소스는 resources경로 하위에 보관
+
+@ResponseBody : 뷰리졸버 대신 HTTP메시지컨버터 적용되어 http의 body에 문자내용 직접반환
+
+스프링 MVC는 다음의 경우에 HTTP 메시지 컨버터를 적용한다.
+HTTP 요청: @RequestBody , HttpEntity(RequestEntity) , 
+HTTP 응답: @ResponseBody , HttpEntity(ResponseEntity) ,
+
+-------6강 정리--------
+
+로그 : 실무에선 sout쓰면안되고 성능상으로도 로그쓰는게좋음
+롬복 설치 및 애노테이션 활성화후 @SLF4J 로 사용
+로그엔 레벨이 있다. 운영서버엔 모든 로그를 표시하면 성능이 떨어지므로 레벨을 나눠서 관리
+TRACE>DEBUG>INFO>WARN>ERROR
+(개발은 DEBUG도, 운영은 INFO까지만)
+로그 출력 포맷 : 시간,로그레벨,프로세스ID,쓰레드명,클래스명,로그메시지
+
+@RestController 사용시 컨트롤러에서 뷰리졸버 대신 http메시지바디에 바로입력함. -> 스트링 등의 다른 타입 리턴가능
+@RequestMapping("url") : 해당 url호출 시 이 메서드 실행. 배열표현가능 ({"url1","url2"})
+@PathVariable : 메서드 선언(@PathVariable("파라미터") 변수타입 변수명) , 경로변수. RequestMapping의 경로와 변수를 매핑시켜줌. 이름 같으면 ("파라미터") <- 이부분 생략 가능, 다중 사용 가능(변수 여러개)
+@RequestHeader : 메서드 선언(@RequestHeader MultiValueMap<String, String> headerMap) , 모든 헤더를 멀티밸류앱 형식으로 조회
+@RequestHeader : 메서드 선언(@RequestHeader("host") String host) , 특정 HTTP 헤더 조회 (속성 - 필수 값 여부(required), 기본 값 속성(defaultValue))
+@RequestParam : 메서드 선언(여기나){여기.@RequestParam("파라미터") 변수타입 변수명} , 파라미터 이름으로 바인딩, 이름이 변수랑 같으면 ("파라미터") 이부분 생략 가능, String , int , Integer 등의 단순 타입이면 @RequestParam 도 생략 가능!!
+@ResponseBody : View 조회를 무시하고, HTTP message body에 직접 해당 내용 입력
+@ModelAttribute : 파라미터를 객체로 받음, 객체형으로 받을땐 @~ 생략 가능, 기본형은 생략 시 @RequestParam으로 처리됨.
+@RequestBody : HTTP 메시지 바디 조회, 생략 불가능, 문자열로도 객체로도 데이터 받을 수 있다.
+HttpEntity : 헤더, 바디 정보 편리하게 조회하여 요청/응답 처리
+ObjectMapper : 문자로 된 JSON 데이터를 자바 객체로 변환, 하지만 @RequestBody 와 HttpEntity 에서 객체형으로 받으면 ObjectMapper 생략하고 객체사용 가능함.
+@ResponseStatus(HttpStatus.상태) : 응답시 상태전달 (메시지바디에 객체로 응답할 때 주로 사용)
+ResponseEntity : 응답 상태 설정 가능함
+
+@RequestMapping(요기)
+메소드 타입 : RequestMethod.GET 등
+
+@GetMapping(요기) @PostMapping(요기) 등
+파라미터 매핑 : params = "파라미터=값" 조건식 가능, != 사용가능, 다중 조건 가능 {"조건1","조건2"} 잘안씀.
+헤더 조건 매핑 : headers = "조건식"
+미디어타입(Content-Type) 조건 매핑 : consumes = "application/json" , 아스타 사용가능 *\/* application/*
+미디어타입(Accept) 조건 매핑 : produces = "text/html"
+
+<HTTP 요청>
+1. GET - 쿼리 파라미터 : URL의 쿼리 파라미터에 데이터 포함해서 전달
+2. POST - HTML Form : 메시지 바디에 쿼리 파라미터 형식으로 전달
+3. HTTP message body : HTTP 메시지 바디에 데이터 직접 담아서 요청 (주로 JSON 사용), POST/PUT/PATCH
+
+<파라미터 - 1,2번>
+getParameter(), @RequestParam, @ModelAttribute 사용 가능
+
+기본값 조건 사용 예시 : @RequestParam(required = false) Integer age 
+주의 : String은 url에 "파라미터="입력시 null 아닌 ""값 들어감 (둘이 다름)
+주의2 : Int형은 null값 들어갈 수 없음, Integer로 변경하여 사용하거나 defaultValue 사용(사용시 required 자체가 의미 없어짐)
+
+@RequestParam Map<String, Object> paramMap
+@RequestParam MultiValueMap ~~
+파라미터를 Map 또는 MultiValueMap 으로 조회 가능
+
+스프링은 해당 생략시 다음과 같은 규칙을 적용한다.
+String , int , Integer 같은 단순 타입 = @RequestParam
+나머지 = @ModelAttribute (argument resolver 로 지정해둔 타입 외)
+
+<단순 텍스트 - 3번>
+getParameter(), @RequestParam, @ModelAttribute 사용 불가
+
+접근법 (참고 : @RequestParam , @ModelAttribute처럼 파라미터 조회와는 전혀 상관 없다. 헤더나 바디 조회임)
+InputStream으로 직접 읽고 writer로 쓰거나, (복잡)
+HttpEntity 사용 (헤더, 바디 정보 편리하게 조회하여 요청/응답 처리) : Request를 HttpEntity<String>로 받고 .getBody()로 사용
+@RequestBody 로 바디 정보 편리하게 조회 (헤더는 HttpEntity나 @RequestHeader 사용해야함)
+
+HttpEntity 사용법
+public HttpEntity<String> 메서드(HttpEntity<String> httpEntity){String messageBody = httpEntity.getBody(); return new HttpEntity<>("ok");}
+응답에 사용시 view 조회 X
+
+ObjectMapper 사용법 - messageBody는 @RequestBody로 간단히 불러옴(객체형으로 받음)
+private ObjectMapper objectMapper = new ObjectMapper(); (메서드 밖에서 선언함)
+HelloData data = objectMapper.readValue(messageBody, HelloData.class);
+log.info("username={}, age={}", data.getUsername(), data.getAge());
+
+@RequestBody 객체 받을 때 주의사항
+content-type이 application/json인지 꼭! 확인해야함
+
+ObjectMapper 생략 가능
+@RequestBody와 HttpEntity 를 객체로 받으면 바로 게터 세터 호출 등 등 사용가능
+
+@RequestBody, @ResponseBody 함께 사용 후 Request에서 받은 객체 Return 시, 메시지바디에 객체를 넣어줄 수 있다.
+
+응답 3가지 
+1. 정적 리소스 (정적인 페이지 제공 - 리소스 하위에 저장 - /resources/static)
+2. 뷰 템플릿 (동적인 HTML 제공 - 뷰가 응답 만들어서 전달(컨트롤러에서 해당 경로의 모델앤뷰 리턴) - src/main/resources/templates)
+3. HTTP 메시지 (HTML이 아닌 데이터 전달, HTTP 메시지 바디에 JSON 같은 형식으로 데이터 실어 보냄)
+
+@ResponseBody : view 조회 대신 직접 HTTP 메시지 바디에 응답 입력 가능, 하지만 상태값 수정 불가
+@ResponseStatus(HttpStatus.상태)로 상태값을 변경해주거나, (동적 변경 불가)
+아예 ResponseEntity 를 사용해야 동적으로 상태값 변경 가능
+
+스프링 MVC는 다음의 경우에 HTTP 메시지 컨버터를 적용한다.
+HTTP 요청: @RequestBody , HttpEntity(RequestEntity) , 
+HTTP 응답: @ResponseBody , HttpEntity(ResponseEntity) ,
+
+
+-------7강 정리--------
+@Data는 너무 다들어가있어서(?) 위험하므로
+@Getter @Setter 정도 써주는게 좋다
+
+(참고) 실무에서는 HashMap, long 타입 그냥 쓰면 멀티쓰레드에서 동시접근 시 꼬일수 있으므로 다르게 써야한다
+
+HTTP Form 전송은 PUT, PATCH를 지원하지 않는다 GET , POST만 가능
+
+POST/Redirect/Get (=PRG) : 제출 후 새로고침시 또 제출되지 않도록 리다이렉트 처리
+RedirectAttributes : 사용시 URL 인코딩도 해주고, pathVariable , 쿼리 파라미터까지 처리해준다.
+
+뷰 - 컨트롤러 - 리포지토리
+컨트롤러 : 
+전체조회GET{리포지토리.전체검색 / 모델.객체리스트 / 리턴.목록뷰} 
+상세조회GET{리포지토리.아뒤검색 / 모델.객체 / 리턴.상세뷰}
+등록폼GET{리턴.등록뷰} 
+등록처리POST{리포지토리.저장 / 리턴.리다이렉트} 
+수정폼GET{모델.객체 / 리턴.수정뷰} 
+수정처리POST{리포지토리.업뎃 / 리턴.리다이렉트} 
+

@@ -763,3 +763,163 @@ public ResponseEntity<ErrorResult> userExHandle(UserException e) {}
 @ControllerAdvice(annotations = RestController.class)
 @ControllerAdvice("org.example.controllers")
 @ControllerAdvice(assignableTypes = {ControllerInterface.class, AbstractController.class})
+
+
+-----------------스프링 타입 컨버터
+인풋 파라미터, url경로는 기본적으로 스트링이나,
+@RequestParam , @ModelAttribute , @PathVariable 등은 스프링이 중간에서 타입변환 해준다
+
+컨버터 인터페이스
+스프링은 확장 가능한 컨버터 인터페이스를 제공함
+타입변환 필요시, 컨버터 인터페이스를 구현해서 등록하면댐
+
+주의
+Converter 라는 이름의 인터페이스가 많으니 조심해야 한다.
+org.springframework.core.convert.converter.Converter 를 사용해야 한다.
+
+컨버터 인터페이스 : 단순하나 타입 컨버터를 등록하고 관리하면서 편리하게 변환 기능을 제공하는 역할자 필요 -> 컨버전 서비스
+package org.springframework.core.convert.converter;
+public interface Converter<S, T> {
+ T convert(S source);
+}
+
+컨버전 서비스 인터페이스 : 컨버팅이 가능한가? 확인하는 기능과, 컨버팅 기능을 제공한다.
+public interface ConversionService {
+boolean canConvert(@Nullable Class<?> sourceType, Class<?> targetType);
+boolean canConvert(@Nullable TypeDescriptor sourceType, TypeDescriptor targetType);
+
+<T> T convert(@Nullable Object source, Class<T> targetType);
+Object convert(@Nullable Object source, @Nullable TypeDescriptor sourceType, TypeDescriptor targetType);
+}
+
+등록과 사용 분리
+컨버터를 등록할 때는 StringToIntegerConverter 같은 타입 컨버터를 명확하게 알아야 한다.
+반면에 컨버터를 사용하는 입장에서는 타입 컨버터를 전혀 몰라도 된다.
+따라서 타입을 변환을 원하는 사용자는 컨버전 서비스 인터페이스에만 의존하면 된다.
+물론 컨버전 서비스를 등록하는 부분과 사용하는 부분을 분리하고 의존관계 주입을 사용해야 한다.
+
+등록
+DefaultConversionService conversionService = new DefaultConversionService();    //디폴트 컨버터
+conversionService.addConverter(new StringToIntegerConverter());     // 추가로 컨버터 등록
+
+<스프링에 컨버터 적용하기>
+WebConfig에 아래와 같이 등록해주자
+컨버전 서비스 컨버터 등록 시, WebMvcConfigurer 가 제공하는 addFormatters()로 등록하면 된다
+@Override
+public void addFormatters(FormatterRegistry registry) {
+ registry.addConverter(new StringToIntegerConverter());
+}
+
+사용 (컨버전 서비스)
+Integer value = conversionService.convert("10", Integer.class)
+
+인터페이스 분리 원칙 - ISP(Interface Segregation Principle)
+인터페이스 분리 원칙은 클라이언트가 자신이 이용하지 않는 메서드에 의존하지 않아야 한다.
+
+DefaultConversionService 는 다음 두 인터페이스를 구현했다.
+ConversionService : 컨버터 사용에 초점
+ConverterRegistry : 컨버터 등록에 초점
+
+<뷰 템플릿에 컨버터 적용하기>
+타임리프는 렌더링 시에 컨버터를 적용해서 렌더링 하는 방법을 편리하게 지원
+${{ipPort}} : ipPort값에 컨버터 적용시켜 출력함
+타임리프의 th:field 는 자동으로 컨버전 서비스를 적용해주어서 ${{ipPort}} 처럼 적용됨
+
+포맷터 - Formatter
+객체를 특정한 포멧에 맞추어 "문자"로 출력하거나 또는 그 반대의 역할을 하는 것에 특화된 기능
+
+Converter vs Formatter
+Converter 는 범용(객체->객체)
+Formatter 는 문자에 특화(객체->문자, 문자->객체) + 현지화(Locale)
+->Converter 의 특별한 버전
+
+포맷터는 객체를 문자로 변경하고, 문자를 객체로 변경하는 두 가지 기능을 모두 수행한다.
+String print(T object, Locale locale) : 객체를 문자로 변경한다.
+T parse(String text, Locale locale) : 문자를 객체로 변경한다.
+
+Formatter 인터페이스
+public interface Printer<T> {
+String print(T object, Locale locale);
+}
+public interface Parser<T> {
+T parse(String text, Locale locale) throws ParseException;
+}
+public interface Formatter<T> extends Printer<T>, Parser<T> {
+}
+
+FormattingConversionService : 포맷터를 지원하는 컨버전 서비스, 포맷터는 이거로 등록한다.
+등록 코드)
+DefaultFormattingConversionService conversionService = new DefaultFormattingConversionService();
+ //컨버터 등록
+ conversionService.addConverter(new StringToIpPortConverter());
+ //포맷터 등록
+ conversionService.addFormatter(new MyNumberFormatter());
+
+ 음근데 이거도 되는듯 - WebConfig파일에서 :
+ public void addFormatters(FormatterRegistry registry) {
+  //주석처리 우선순위
+  //registry.addConverter(new StringToIntegerConverter());
+  //registry.addConverter(new IntegerToStringConverter());
+  registry.addConverter(new StringToIpPortConverter());
+  registry.addConverter(new IpPortToStringConverter());
+  //추가
+  registry.addFormatter(new MyNumberFormatter());
+
+스프링부트 애노테이션 기반 포맷터 제공함
+걍이거 쓰면됨
+  @NumberFormat : 숫자 관련 형식 지정 포맷터 사용, NumberFormatAnnotationFormatterFactory
+  @DateTimeFormat : 날짜 관련 형식 지정 포맷터 사용, Jsr310DateTimeFormatAnnotationFormatterFactory
+
+
+-----------------파일 업로드
+HTML 폼 전송 방식
+application/x-www-form-urlencoded : 폼에 입력한 전송할 항목을 HTTP Body에 문자로 username=kim&age=20 와 같이 & 로 구분해서 전송
+multipart/form-data
+
+multipart/form-data
+파일업로드 시 파일은 문자가 아닌 바이너리 데이터이다.
+바이너리 데이터를 포함한 데이터를 전송하기 위한 방법이다.
+사용하려면 Form 태그에 별도의 enctype="multipart/form-data" 를 지정
+
+request.getParts() : multipart/form-data 전송 방식에서 각각 나누어진 부분을 받아서 확인할 수 있다.
+사용 예시 : Collection<Part> parts = request.getParts();
+
+spring.servlet.multipart.max-file-size=1MB
+spring.servlet.multipart.max-request-size=10MB
+큰 파일을 무제한 업로드하게 둘 수는 없으므로 업로드 사이즈를 제한할 수 있다
+
+단축키 : iter 입력하면 가장 가까이 있는 애로 for문 생성 !
+
+파일 디렉토리 주입
+application.properties 에서 설정한 file.dir 의 값을 주입한다.
+@Value("${file.dir}")
+private String fileDir;
+
+Part 주요 메서드
+part.getSubmittedFileName() : 클라이언트가 전달한 파일명
+part.getInputStream(): Part의 전송 데이터를 읽을 수 있다.
+part.write(...): Part를 통해 전송된 데이터를 저장할 수 있다.
+
+바이너리 <-> 문자 간 변환
+반드시 Character 타입 세팅 해줘야 한다 (UTF-8)
+String body = StreamUtils.copyToString(inputStream, StandardCharsets.UTF_8);
+
+파일 저장
+파트에서 제출된 파일명 불러와 값 존재시 디렉토리+파일명으로 파일경로 변수 값 생성하여 파트의 .write(경로) 함수 통해 저장
+if (StringUtils.hasText(part.getSubmittedFileName())) {
+    String fullPath = fileDir + part.getSubmittedFileName();
+    log.info("파일 저장 fullPath={}", fullPath);
+    part.write(fullPath);
+}
+
+MultipartFile
+멀티파트 파일을 매우 편리하게 지원하는 스프링 제공 인터페이스
+
+사용 방법
+@RequestParam MultipartFile file
+업로드하는 HTML Form의 name에 맞추어 @RequestParam 을 적용하면 된다.
+@ModelAttribute 에서도 MultipartFile 을 동일하게 사용할 수 있다.
+
+MultipartFile 주요 메서드
+file.getOriginalFilename() : 업로드 파일 명
+file.transferTo(...) : 파일 저장
